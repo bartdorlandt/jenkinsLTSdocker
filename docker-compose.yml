@@ -1,0 +1,52 @@
+---
+services:
+  ltscustomjenkins:
+    build: .
+    container_name: ltscustomjenkins
+    hostname: ltscustomjenkins
+    networks: 
+      - jenkins
+    restart: always
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock.raw:/var/run/docker.sock
+    group_add:
+      - 0
+
+  jenkinsagent:
+    depends_on:
+      - ltscustomjenkins
+    build: 
+      context: .
+      dockerfile: ./Dockerfile_agent
+    container_name: jenkinsagent
+    hostname: jenkinsagent
+    networks: 
+      - jenkins
+    restart: always
+    secrets:
+      - jenkins_secret
+    environment:
+      - JENKINS_URL=${JENKINS_URL}
+    volumes:
+      - agent1-workdir:/home/jenkins/agent
+    init: true
+    command: >
+      bash -c "curl -sO http://${JENKINS_URL}:8080/jnlpJars/agent.jar && 
+      java -jar agent.jar -url http://${JENKINS_URL}:8080/ 
+      -secret $(cat /run/secrets/jenkins_secret) -name dockeragent -workDir /home/jenkins/agent"
+
+secrets:
+  jenkins_secret:
+    external: false
+    file: ./.jenkins_token
+
+networks:
+  jenkins:
+
+volumes:
+  jenkins_home:
+  agent1-workdir:
